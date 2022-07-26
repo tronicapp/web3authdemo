@@ -1,23 +1,16 @@
 import "./App.css";
 import {
-    createContext,
-    ReactNode,
-    useContext,
     useEffect,
     useState,
 } from "react";
-import { Web3AuthOptions } from "@web3auth/web3auth";
 import { Web3AuthCore } from "@web3auth/core";
 import { CoinbaseAdapter } from "@web3auth/coinbase-adapter";
 import { MetamaskAdapter } from "@web3auth/metamask-adapter";
 import {
     CHAIN_NAMESPACES,
-    CustomChainConfig,
-    SafeEventEmitterProvider,
     ADAPTER_EVENTS,
 } from "@web3auth/base";
 import {
-    API_URL,
     CHAIN_BLOCK_EXPLORER,
     CHAIN_DISPLAY_NAME,
     CHAIN_ID,
@@ -39,6 +32,7 @@ let chainOptions = {
 
 const coinbaseAdapter = new CoinbaseAdapter({
     adapterSettings: { appName: "Drop Engine Test App" },
+    chainConfig: chainOptions,
 });
 const metamaskAdapter = new MetamaskAdapter({
     chainConfig: chainOptions,
@@ -47,7 +41,6 @@ const metamaskAdapter = new MetamaskAdapter({
 function App() {
     const [web3auth, setWeb3auth] = useState(null);
     const [provider, setProvider] = useState(null);
-    const [accounts, setAccounts] = useState([]);
 
     function subscribeAuthEvents(web3auth) {
         web3auth.on(ADAPTER_EVENTS.CONNECTED, async (data) => {
