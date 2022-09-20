@@ -1,15 +1,7 @@
 import "./App.css";
-import {
-    useEffect,
-    useState,
-} from "react";
-import { Web3AuthCore } from "@web3auth/core";
-import { CoinbaseAdapter } from "@web3auth/coinbase-adapter";
-import { MetamaskAdapter } from "@web3auth/metamask-adapter";
-import {
-    CHAIN_NAMESPACES,
-    ADAPTER_EVENTS,
-} from "@web3auth/base";
+import { useEffect, useState } from "react";
+import { Web3Auth } from "@web3auth/web3auth";
+import { CHAIN_NAMESPACES, ADAPTER_EVENTS } from "@web3auth/base";
 import {
     CHAIN_BLOCK_EXPLORER,
     CHAIN_DISPLAY_NAME,
@@ -18,34 +10,32 @@ import {
     CHAIN_TICKER,
     CHAIN_TICKER_NAME,
     WEB_3_AUTH_CLIENT_ID,
+    API_URL,
 } from "./consts";
-
-let chainOptions = {
-    chainNamespace: CHAIN_NAMESPACES.EIP155,
-    chainId: "0x4",
-    rpcTarget: "https://rinkeby.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161",
-    displayName: "rinkeby",
-    blockExplorer: "https://rinkeby.etherscan.io/",
-    ticker: "ETH",
-    tickerName: "Ethereum",
-};
-
-const coinbaseAdapter = new CoinbaseAdapter({
-    adapterSettings: { appName: "Drop Engine Test App" },
-    chainConfig: chainOptions,
-});
-const metamaskAdapter = new MetamaskAdapter({
-    chainConfig: chainOptions,
-});
+import { useWeb3React } from "@web3-react/core";
+import { Web3ReactProvider } from "@web3-react/core";
+import { Web3Provider } from "@ethersproject/providers";
+import { ChainId } from "./ChainId.ts";
+import { ethers } from "ethers";
+import axios from "axios";
 
 function App() {
+    const { account, activate, deactivate, library } = useWeb3React();
     const [web3auth, setWeb3auth] = useState(null);
     const [provider, setProvider] = useState(null);
+    const [user, setUser] = useState(null);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [data, setData] = useState({});
+
+    useEffect(() => {
+        if (library) setProvider(library);
+    }, [library, web3auth]);
 
     function subscribeAuthEvents(web3auth) {
         web3auth.on(ADAPTER_EVENTS.CONNECTED, async (data) => {
-            console.log("Yeah!, you are successfully logged in", data, web3auth.provider);
-            setProvider(web3auth.provider)
+            console.log("Yeah!, you are successfully logged in");
+            setProvider(await web3auth.provider);
+            setUser(await web3auth.getUserInfo());
         });
 
         web3auth.on(ADAPTER_EVENTS.CONNECTING, () => {
@@ -63,7 +53,6 @@ function App() {
             );
         });
     }
-
     const init = async () => {
         try {
             const ethChainConfig = {
@@ -77,50 +66,39 @@ function App() {
             };
             const options = {
                 chainConfig: ethChainConfig,
-                authMode: "DAPP",
+                authMode: "WALLET",
                 clientId: WEB_3_AUTH_CLIENT_ID,
             };
-            const wA = new Web3AuthCore(options);
+            const web3auth = new Web3Auth(options);
 
-            wA.configureAdapter(coinbaseAdapter);
-            wA.configureAdapter(metamaskAdapter);
-            subscribeAuthEvents(wA);
+            subscribeAuthEvents(web3auth);
 
+            await web3auth.initModal();
+            setWeb3auth(web3auth);
 
-            await wA.init();
-            setWeb3auth(wA);
+            const web3authProvider = await web3auth.connect();
+
+            setProvider(new ethers.providers.Web3Provider(web3authProvider));
         } catch (err) {
             console.error(err);
         }
     };
 
     useEffect(() => {
-      console.log('initializing')
-      init()
-    }, [])
+        console.log("initializing");
+        init();
+    }, []);
 
-    const login = async (wallet) => {
+    const login = async () => {
         if (web3auth?.status !== "ready") {
             await init();
         }
 
         if (!web3auth) {
-            console.log("web3auth not initialized");
             return;
         }
 
-        let adapterName;
-
-        switch (wallet) {
-            case "metamask":
-                adapterName = metamaskAdapter.name;
-                break;
-            case "coinbase":
-                adapterName = coinbaseAdapter.name;
-                break;
-        }
-
-        await web3auth.connectTo(adapterName);
+        await web3auth.connect();
     };
 
     const logout = async () => {
@@ -132,13 +110,109 @@ function App() {
         setProvider(null);
     };
 
+    const signMessage = async () => {
+        console.log("signing");
+        const message = "hiiii";
+        const signer = provider.getSigner();
+        await signer.signMessage(message);
+    };
+
+    const getMessage = async (address) => {
+        return axios
+            .post(
+                `${API_URL}/api/message`,
+                { walletAddress: address, origin: origin },
+                {
+                    // withCredentials: true,
+                    //@ts-ignore
+                    // crossDomain: true,
+                }
+            )
+            .then((res) => {
+                return res.data.message;
+            });
+    };
+
+    async function signInWithEthereum() {
+        try {
+            const signer = provider.getSigner();
+            console.log("signer: ", signer);
+            console.log(await signer.getAddress());
+            const message = await getMessage(await signer.getAddress());
+            const signature = await signer.signMessage(message);
+
+            await axios
+                .post(`${API_URL}/api/authenticate`, { message, signature })
+                .then((res) => {
+                    setData(res)
+                    setIsAuthenticated(!!res.data.token);
+                    if (!!res.data.token) {
+                        localStorage.setItem("ue-token", res.data.token);
+                    } else {
+                        throw Error("no token returned!");
+                    }
+                })
+                .catch((err) => {
+                    console.error(err);
+                    setIsAuthenticated(true);
+                });
+        } catch (err) {
+            console.error(err);
+            // await logout();
+        }
+    }
+    console.log(isAuthenticated);
+
     return (
         <div className="App">
-            <button onClick={() => login("metamask")}>MetaMask</button>
-            <button onClick={() => login("coinbase")}>CoinBase</button>
-            <button onClick={() => logout()}>Log Out</button>
+            <Web3ReactProvider getLibrary={getLibrary}>
+                <button onClick={() => signInWithEthereum()}>
+                    signMessage
+                </button>
+                <br />
+                <span>isAuthenticated: {isAuthenticated.toString()}</span>
+                <br />
+                <span>{JSON.stringify(data)}</span>
+            </Web3ReactProvider>
         </div>
     );
 }
 
 export default App;
+
+const NETWORK_POLLING_INTERVALS = {
+    [ChainId.ARBITRUM]: 1_000,
+    [ChainId.ARBITRUM_TESTNET]: 1_000,
+    [ChainId.HARMONY]: 15_000,
+    [ChainId.MATIC]: 15_000,
+};
+
+function getLibrary(provider) {
+    const library = new Web3Provider(
+        provider,
+        // eslint-disable-next-line no-nested-ternary
+        typeof provider.chainId === "number"
+            ? provider.chainId
+            : typeof provider.chainId === "string"
+            ? parseInt(provider.chainId, 16)
+            : "any"
+    );
+
+    library.pollingInterval = 15_000;
+
+    library
+        .detectNetwork()
+        .then((network) => {
+            const networkingPollingInterval =
+                NETWORK_POLLING_INTERVALS[network.chainId];
+            if (networkingPollingInterval) {
+                console.debug(
+                    "setting polling interval",
+                    networkingPollingInterval
+                );
+                library.pollingInterval = networkingPollingInterval;
+            }
+        })
+        .catch((err) => console.error(err));
+    return library;
+}
