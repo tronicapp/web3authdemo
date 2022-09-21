@@ -1,23 +1,31 @@
 import "./App.css";
 import { useEffect, useState } from "react";
-import { Web3Auth } from "@web3auth/web3auth";
+import { Web3AuthCore } from "@web3auth/core";
+import { OpenloginAdapter } from "@web3auth/openlogin-adapter";
 import { CHAIN_NAMESPACES, ADAPTER_EVENTS } from "@web3auth/base";
-import {
-    CHAIN_BLOCK_EXPLORER,
-    CHAIN_DISPLAY_NAME,
-    CHAIN_ID,
-    CHAIN_RPC_TARGET,
-    CHAIN_TICKER,
-    CHAIN_TICKER_NAME,
-    WEB_3_AUTH_CLIENT_ID,
-    API_URL,
-} from "./consts";
+import { WEB_3_AUTH_CLIENT_ID, API_URL } from "./consts";
 import { useWeb3React } from "@web3-react/core";
 import { Web3ReactProvider } from "@web3-react/core";
 import { Web3Provider } from "@ethersproject/providers";
 import { ChainId } from "./ChainId.ts";
-import { ethers } from "ethers";
 import axios from "axios";
+import { getMessage } from "./utils";
+
+const adapter = new OpenloginAdapter({
+    adapterSettings: {
+        network: "testnet",
+        clientId: WEB_3_AUTH_CLIENT_ID,
+        uxMode: "popup", // options: redirect || popup
+        loginConfig: {
+            jwt: {
+                name: "any name",
+                verifier: "tronic-google-testnet",
+                typeOfLogin: "jwt",
+                clientId: "zZCJkE5AG5n18aJNmFir8KhnAuGsGoI5",
+            },
+        },
+    },
+});
 
 function App() {
     const { account, activate, deactivate, library } = useWeb3React();
@@ -26,6 +34,11 @@ function App() {
     const [user, setUser] = useState(null);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [data, setData] = useState({});
+
+    useEffect(() => {
+        user && console.log(user);
+        provider && console.log(provider);
+    }, [user, provider]);
 
     useEffect(() => {
         if (library) setProvider(library);
@@ -53,32 +66,33 @@ function App() {
             );
         });
     }
+
     const init = async () => {
         try {
-            const ethChainConfig = {
-                chainNamespace: CHAIN_NAMESPACES.EIP155,
-                displayName: CHAIN_DISPLAY_NAME,
-                blockExplorer: CHAIN_BLOCK_EXPLORER,
-                chainId: CHAIN_ID,
-                rpcTarget: CHAIN_RPC_TARGET,
-                ticker: CHAIN_TICKER,
-                tickerName: CHAIN_TICKER_NAME,
-            };
-            const options = {
-                chainConfig: ethChainConfig,
-                authMode: "WALLET",
+            const web3authCore = new Web3AuthCore({
+                chainConfig: {
+                    chainNamespace: CHAIN_NAMESPACES.EIP155,
+                    chainId: "0x1",
+                    rpcTarget:
+                        "https://mainnet.infura.io/v3/776218ac4734478c90191dde8cae483c",
+                    blockExplorer: "https://etherscan.io/",
+                    ticker: "ETH",
+                    tickerName: "Ethereum",
+                },
                 clientId: WEB_3_AUTH_CLIENT_ID,
-            };
-            const web3auth = new Web3Auth(options);
+            });
 
-            subscribeAuthEvents(web3auth);
+            subscribeAuthEvents(web3authCore);
 
-            await web3auth.initModal();
-            setWeb3auth(web3auth);
+            web3authCore.configureAdapter(adapter);
+            console.log(web3authCore);
+            await web3authCore.init();
 
-            const web3authProvider = await web3auth.connect();
+            setWeb3auth(web3authCore);
 
-            setProvider(new ethers.providers.Web3Provider(web3authProvider));
+            // const web3authProvider = await web3auth.connect();
+
+            // setProvider(new ethers.providers.Web3Provider(web3authProvider));
         } catch (err) {
             console.error(err);
         }
@@ -88,50 +102,6 @@ function App() {
         console.log("initializing");
         init();
     }, []);
-
-    const login = async () => {
-        if (web3auth?.status !== "ready") {
-            await init();
-        }
-
-        if (!web3auth) {
-            return;
-        }
-
-        await web3auth.connect();
-    };
-
-    const logout = async () => {
-        if (!web3auth) {
-            console.log("web3auth not initialized yet");
-            return;
-        }
-        await web3auth.logout();
-        setProvider(null);
-    };
-
-    const signMessage = async () => {
-        console.log("signing");
-        const message = "hiiii";
-        const signer = provider.getSigner();
-        await signer.signMessage(message);
-    };
-
-    const getMessage = async (address) => {
-        return axios
-            .post(
-                `${API_URL}/api/message`,
-                { walletAddress: address, origin: origin },
-                {
-                    // withCredentials: true,
-                    //@ts-ignore
-                    // crossDomain: true,
-                }
-            )
-            .then((res) => {
-                return res.data.message;
-            });
-    };
 
     async function signInWithEthereum() {
         try {
@@ -144,7 +114,7 @@ function App() {
             await axios
                 .post(`${API_URL}/api/authenticate`, { message, signature })
                 .then((res) => {
-                    setData(res)
+                    setData(res);
                     setIsAuthenticated(!!res.data.token);
                     if (!!res.data.token) {
                         localStorage.setItem("ue-token", res.data.token);
@@ -158,14 +128,32 @@ function App() {
                 });
         } catch (err) {
             console.error(err);
-            // await logout();
         }
     }
-    console.log(isAuthenticated);
+
+    const login = async () => {
+        await web3auth.connectTo(adapter.name, {
+            loginProvider: "jwt",
+            extraLoginOptions: {
+                domain: "https://dev-cvfuc6b2.us.auth0.com",
+                verifierIdField: "sub",
+            },
+        });
+    };
+
+    const logout = async () => {
+        await web3auth.logout();
+    };
 
     return (
         <div className="App">
             <Web3ReactProvider getLibrary={getLibrary}>
+                <button onClick={() => login()}>login</button>
+                <br />
+                <br />
+                <button onClick={() => logout()}>logout</button>
+                <br />
+                <br />
                 <button onClick={() => signInWithEthereum()}>
                     signMessage
                 </button>

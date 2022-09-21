@@ -6,6 +6,8 @@
     "@ethersproject/providers": "^5.7.1",
     "@web3-react/core": "^6.1.9",
     "@web3auth/base": "^1.1.1",
+    "@web3auth/core": "^2.1.2",
+    "@web3auth/openlogin-adapter": "^2.1.2",
     "@web3auth/web3auth": "^1.2.4",
     "assert": "^2.0.0",
     "axios": "^0.27.2",
