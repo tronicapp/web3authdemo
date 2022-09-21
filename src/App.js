@@ -11,6 +11,8 @@ import { ChainId } from "./ChainId.ts";
 import axios from "axios";
 import { getMessage } from "./utils";
 
+//google, discord, twitter main priorities
+
 const adapter = new OpenloginAdapter({
     adapterSettings: {
         network: "testnet",
@@ -22,6 +24,14 @@ const adapter = new OpenloginAdapter({
                 verifier: "tronic-google-testnet",
                 typeOfLogin: "jwt",
                 clientId: "zZCJkE5AG5n18aJNmFir8KhnAuGsGoI5",
+            },
+
+            // Google login
+            google: {
+                name: "Custom Auth Login",
+                verifier: "YOUR_GOOGLE_VERIFIER_NAME", // Pass the Verifier name here
+                typeOfLogin: "google", // Pass on the login provider of the verifier you've created
+                clientId: "GOOGLE_CLIENT_ID.apps.googleusercontent.com", // Pass on the Google `Client ID` here
             },
         },
     },
