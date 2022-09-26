@@ -10,7 +10,7 @@ import { Web3Provider } from "@ethersproject/providers";
 import { ChainId } from "./ChainId.ts";
 import axios from "axios";
 import { getMessage } from "./utils";
-
+import { ethers } from "ethers";
 //google, discord, twitter main priorities
 
 const adapter = new OpenloginAdapter({
@@ -19,19 +19,24 @@ const adapter = new OpenloginAdapter({
         clientId: WEB_3_AUTH_CLIENT_ID,
         uxMode: "popup", // options: redirect || popup
         loginConfig: {
-            jwt: {
-                name: "any name",
-                verifier: "tronic-google-testnet",
-                typeOfLogin: "jwt",
-                clientId: "zZCJkE5AG5n18aJNmFir8KhnAuGsGoI5",
+            facebook: {
+                name: "Tronic Facebook",
+                verifier: "tronic-facebook",
+                typeOfLogin: "facebook",
+                clientId: "410518024372543",
             },
-
-            // Google login
             google: {
-                name: "Custom Auth Login",
-                verifier: "YOUR_GOOGLE_VERIFIER_NAME", // Pass the Verifier name here
-                typeOfLogin: "google", // Pass on the login provider of the verifier you've created
-                clientId: "GOOGLE_CLIENT_ID.apps.googleusercontent.com", // Pass on the Google `Client ID` here
+                name: "Tronic Google",
+                verifier: "tronic-google",
+                typeOfLogin: "google",
+                clientId:
+                    "585471592125-r9rjpi0sj6aq9lps12oi713khvtucj43.apps.googleusercontent.com",
+            },
+            discord: {
+                name: "Tronic Discord",
+                verifier: "tronic-discord",
+                typeOfLogin: "discord",
+                clientId: "1022954060573310996",
             },
         },
     },
@@ -57,7 +62,7 @@ function App() {
     function subscribeAuthEvents(web3auth) {
         web3auth.on(ADAPTER_EVENTS.CONNECTED, async (data) => {
             console.log("Yeah!, you are successfully logged in");
-            setProvider(await web3auth.provider);
+            setProvider(new ethers.providers.Web3Provider(web3auth.provider));
             setUser(await web3auth.getUserInfo());
         });
 
@@ -90,6 +95,7 @@ function App() {
                     tickerName: "Ethereum",
                 },
                 clientId: WEB_3_AUTH_CLIENT_ID,
+                // authMode: "WALLET",
             });
 
             subscribeAuthEvents(web3authCore);
@@ -115,7 +121,8 @@ function App() {
 
     async function signInWithEthereum() {
         try {
-            const signer = provider.getSigner();
+            console.log(provider);
+            const signer = await provider.getSigner();
             console.log("signer: ", signer);
             console.log(await signer.getAddress());
             const message = await getMessage(await signer.getAddress());
@@ -141,13 +148,13 @@ function App() {
         }
     }
 
-    const login = async () => {
+    const login = async (loginProvider) => {
         await web3auth.connectTo(adapter.name, {
-            loginProvider: "jwt",
-            extraLoginOptions: {
-                domain: "https://dev-cvfuc6b2.us.auth0.com",
-                verifierIdField: "sub",
-            },
+            loginProvider: loginProvider,
+            // extraLoginOptions: {
+            //     domain: "https://dev-cvfuc6b2.us.auth0.com",
+            //     verifierIdField: "sub",
+            // },
         });
     };
 
@@ -158,7 +165,15 @@ function App() {
     return (
         <div className="App">
             <Web3ReactProvider getLibrary={getLibrary}>
-                <button onClick={() => login()}>login</button>
+                <br />
+                <br />
+                <button onClick={() => login("facebook")}>Facebook</button>
+                <br />
+                <br />
+                <button onClick={() => login("google")}>Google</button>
+                <br />
+                <br />
+                <button onClick={() => login("discord")}>Discord</button>
                 <br />
                 <br />
                 <button onClick={() => logout()}>logout</button>
